@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Object-Oriented Bouncing Balls with Background Image</title>
+  <style>
+    #canvas {
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="800" height="400"></canvas>
+  <script>
+    class Ball {
+      constructor(x, y, dx, dy, radius, imageSrc) {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+        this.radius = radius;
+        this.image = new Image();
+        this.image.src = imageSrc;
+        this.rotate = 0;
+      }
+
+      isPointInside(x, y) {
+        const dx = x - this.x;
+        const dy = y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= this.radius;
+      }
+
+      draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(Math.atan2(this.dy, this.dx));
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(this.image, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
+        ctx.restore();
+      }
+
+      detectCollision(otherBall) {
+        const dx = this.x - otherBall.x;
+        const dy = this.y - otherBall.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < this.radius + otherBall.radius) {
+          return true;
+        }
+
+        return false;
+      }
+
+      handleCollision(otherBall) {
+        const nx = this.x - otherBall.x;
+        const ny = this.y - otherBall.y;
+        const magnitude = Math.sqrt(nx * nx + ny * ny);
+        const normalX = nx / magnitude;
+        const normalY = ny / magnitude;
+
+        const tangentX = -normalY;
+        const tangentY = normalX;
+
+        const vaNormal = this.dx * normalX + this.dy * normalY;
+        const vaTangent = this.dx * tangentX + this.dy * tangentY;
+        const vbNormal = otherBall.dx * normalX + otherBall.dy * normalY;
+        const vbTangent = otherBall.dx * tangentX + otherBall.dy * tangentY;
+
+        const newVaNormal = (vaNormal * (this.radius - otherBall.radius) + 2 * otherBall.radius * vbNormal) / (this.radius + otherBall.radius);
+        const newVbNormal = (vbNormal * (otherBall.radius - this.radius) + 2 * this.radius * vaNormal) / (this.radius + otherBall.radius);
+
+        const newVaX = newVaNormal * normalX + vaTangent * tangentX;
+        const newVaY = newVaNormal * normalY + vaTangent * tangentY;
+        const newVbX = newVbNormal * normalX + vbTangent * tangentX;
+        const newVbY = newVbNormal * normalY + vbTangent * tangentY;
+
+        this.dx = newVaX;
+        this.dy = newVaY;
+        otherBall.dx = newVbX;
+        otherBall.dy = newVbY;
+
+        const separation = 0.1;
+        const dxSeparation = normalX * separation;
+        const dySeparation = normalY * separation;
+        this.x += dxSeparation;
+        this.y += dySeparation;
+        otherBall.x -= dxSeparation;
+        otherBall.y -= dySeparation;
+      }
+
+      update(canvas, balls) {
+        this.x += this.dx;
+        this.y += this.dy;
+
+        if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
+          this.dx = -this.dx;
+        }
+        if (this.y + this.radius > canvas.height || this.y - this.radius < 0) {
+          this.dy = -this.dy;
+        }
+
+        balls.forEach(ball => {
+          if (ball !== this && this.detectCollision(ball)) {
+            this.handleCollision(ball);
+          }
+        });
+      }
+    }
+
+    function createBalls(canvasId, numBalls, minRadius, maxRadius, imageSrc) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const balls = [];
+      let score = 0;
+
+      for (let i = 0; i < numBalls; i++) {
+        const radius = Math.floor(Math.random() * (maxRadius - minRadius + 1)) + minRadius;
+        const x = Math.random() * (canvas.width - radius * 2) + radius;
+        const y = Math.random() * (canvas.height - radius * 2) + radius;
+        const dx = (Math.random() - 0.5) * 4;
+        const dy = (Math.random() - 0.5) * 4;
+        const ball = new Ball(x, y, dx, dy, radius, imageSrc);
+        balls.push(ball);
+      }
+
+      function displayScore() {
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#000';
+        ctx.fillText('Score: ' + score, 10, 20);
+      }
+
+      function drawBalls() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        balls.forEach(ball => {
+          ball.draw(ctx);
+          ball.update(canvas, balls);
+        });
+
+        displayScore();
+
+        requestAnimationFrame(drawBalls);
+      }
+
+      canvas.addEventListener('click', function(event) {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+
+        balls.forEach((ball, index) => {
+          if (ball.isPointInside(clickX, clickY)) {
+            ball.isClicked = true;
+            setTimeout(() => {
+              balls.splice(index, 1);
+              score++;
+              displayScore();
+            }, 100);
+          }
+        });
+      });
+
+      drawBalls();
+    }
+
+    // Usage
+    createBalls('canvas', 40, 10, 30, 'pngwing.com.png');
+  </script>
+</body>
+</html>
